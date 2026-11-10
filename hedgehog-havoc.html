@@ -432,8 +432,8 @@ function showResult(win, stars, spare, bonus) {
 function showLevels() {
   const bests = save.best[save.diff], D = DIFFS[save.diff];
   const card = (L, i) => { const bst = bests[i];
-    return `<button type="button" data-i="${i}" ${i > save.unlocked ? 'disabled' : ''}><span class="n">${i + 1}</span><span>${L.name}</span>
-      <span class="s">${starRow(bst ? bst.stars : 0)}</span><small>${i > save.unlocked ? 'Locked' : bst ? 'Best ' + bst.score.toLocaleString() : 'Not cleared'}</small></button>`; };
+    return `<button type="button" data-i="${i}"><span class="n">${i + 1}</span><span>${L.name}</span>
+      <span class="s">${starRow(bst ? bst.stars : 0)}</span><small>${bst ? 'Best ' + bst.score.toLocaleString() : 'Not cleared'}</small></button>`; };
   overlay.innerHTML = `<div class="card"><h2>Bandit camps</h2>
     <p>Stars and best scores for <b>${D.label}</b>. ${D.desc}</p>
     ${Object.keys(WORLDS).map(w => `<h3>${WORLDS[w].name}<small>${WORLDS[w].note}</small></h3>
