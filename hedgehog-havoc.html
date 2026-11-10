@@ -1,0 +1,523 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Hedgehog Havoc</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titan+One&family=Nunito:wght@600;800&display=swap">
+<style>
+  /* Layout: a slim control bar, one tip line, then the dusk-forest playfield filling the rest of the screen. */
+  :root {
+    color-scheme: dark;
+    --night: #15132b;
+    --panel: #231f45;
+    --panel-edge: #3a3468;
+    --cream: #f6ead7;
+    --muted: #b3a9cf;
+    --ember: #ffb347;
+    --ember-ink: #3a2206;
+    --mint: #7fd1c1;
+    --display: "Titan One", "Arial Rounded MT Bold", "Trebuchet MS", sans-serif;
+    --body: "Nunito", "Segoe UI", system-ui, sans-serif;
+  }
+  html, body { height: 100%; }
+  body {
+    background: var(--night);
+    color: var(--cream);
+    font-family: var(--body);
+    font-weight: 600;
+    font-size: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-block: 10px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+  .bar h1 { font-family: var(--display); font-weight: 400; font-size: 22px; margin: 0; color: var(--ember); letter-spacing: .02em; }
+  .stat { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
+  .stat b { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); }
+  .spacer { flex: 1; }
+  .btns { display: flex; gap: 6px; }
+  button {
+    font: inherit; font-weight: 800; color: var(--cream);
+    background: var(--panel); border: 2px solid var(--panel-edge);
+    border-radius: 999px; padding: 6px 14px; cursor: pointer;
+  }
+  button:hover { border-color: var(--ember); }
+  button:focus-visible { outline: 3px solid var(--mint); outline-offset: 2px; }
+  button.go { background: var(--ember); border-color: var(--ember); color: var(--ember-ink); }
+  button:disabled { opacity: .45; cursor: not-allowed; border-color: var(--panel-edge); }
+  #tip { margin: 0; color: var(--muted); min-height: 1.4em; }
+  #tip b { color: var(--mint); font-weight: 800; }
+  .play { flex: 1; min-height: 0; position: relative; display: flex; justify-content: center; align-items: flex-start; }
+  canvas { display: block; border-radius: 14px; touch-action: none; cursor: grab; background: #1d1a3a; }
+  #overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(21, 19, 43, .78); overflow: auto; border-radius: 14px;
+  }
+  .card {
+    background: var(--panel); border: 2px solid var(--panel-edge); border-radius: 20px;
+    padding: 20px; max-width: 520px; width: 100%; box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 14px; text-align: center; margin: auto;
+  }
+  .card h2 { font-family: var(--display); font-weight: 400; font-size: 28px; margin: 0; color: var(--ember); text-wrap: balance; }
+  .card p { margin: 0; color: var(--muted); }
+  .stars { font-size: 34px; letter-spacing: 6px; color: var(--panel-edge); }
+  .stars i { font-style: normal; color: var(--ember); }
+  .big { font-family: var(--display); font-size: 36px; color: var(--cream); font-variant-numeric: tabular-nums; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+  .levels button { border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 2px; align-items: center; }
+  .levels .n { font-family: var(--display); font-weight: 400; font-size: 22px; color: var(--ember); }
+  .levels .s { color: var(--panel-edge); letter-spacing: 2px; }
+  .levels .s i { font-style: normal; color: var(--ember); }
+  .levels small { color: var(--muted); font-variant-numeric: tabular-nums; }
+</style>
+
+<div class="bar">
+  <h1>Hedgehog Havoc</h1>
+  <div class="stat"><span>Camp</span><b id="lvl">1</b></div>
+  <div class="stat"><span>Score</span><b id="score">0</b></div>
+  <div class="stat"><span>Bandits</span><b id="left">0</b></div>
+  <div class="spacer"></div>
+  <div class="btns">
+    <button id="restart" type="button">Restart</button>
+    <button id="levelsBtn" type="button">Camps</button>
+    <button id="sound" type="button" aria-pressed="true">Sound on</button>
+  </div>
+</div>
+<p id="tip"></p>
+<div class="play" id="play">
+  <canvas id="c" width="1280" height="720" aria-label="Game field. Drag back on the left side and release to launch a hedgehog."></canvas>
+  <div id="overlay" hidden></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script>
+(() => {
+const { Engine, Bodies, Body, Events, Composite } = Matter;
+const W = 1280, H = 720, GY = 640, AX = 190, AY = 500, MAXPULL = 120, POWER = 0.17, G = 0.2778;
+const $ = id => document.getElementById(id);
+const canvas = $('c'), ctx = canvas.getContext('2d'), play = $('play'), overlay = $('overlay');
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const MATS = {
+  ice:   { hp: 25,  den: 0.0008, fill: '#9fe0ee', edge: '#e9fbff' },
+  wood:  { hp: 55,  den: 0.001,  fill: '#c98a4b', edge: '#7d4a20' },
+  stone: { hp: 125, den: 0.0025, fill: '#8d90a6', edge: '#55586e' },
+};
+const HOGS = {
+  bramble: { name: 'Bramble', r: 20, den: 0.004, col: '#a06c47', spike: '#4a2c1c', tip: 'No trick, just a solid hit.' },
+  zip:     { name: 'Zip',     r: 17, den: 0.004, col: '#e9b23a', spike: '#8a5a10', tip: 'Tap mid-flight to dash forward.' },
+  thump:   { name: 'Thump',   r: 26, den: 0.005, col: '#6f80a8', spike: '#2c3550', tip: 'Tap mid-flight to slam straight down.' },
+  blaze:   { name: 'Blaze',   r: 20, den: 0.004, col: '#e0553f', spike: '#7a1d12', tip: 'Tap mid-flight to burst and blast everything nearby.' },
+};
+const b = (mat, x, y, w, h) => ({ k: 'block', mat, x, y, w, h });
+const c = (x, y) => ({ k: 'coon', x, y });
+const tower = (x, base, top) => [
+  b(base, x - 35, 0, 20, 90), b(base, x + 35, 0, 20, 90), b('wood', x, 90, 110, 20), c(x, 0),
+  b(top, x - 35, 110, 20, 70), b(top, x + 35, 110, 20, 70), b('wood', x, 180, 110, 20), c(x, 110),
+];
+const LEVELS = [
+  { name: 'First Raid', hogs: ['bramble', 'bramble', 'bramble'], items: [
+    b('wood', 880, 0, 20, 80), b('wood', 960, 0, 20, 80), b('wood', 920, 80, 120, 20), c(920, 0), c(920, 100) ] },
+  { name: 'Ice House', hogs: ['bramble', 'zip', 'zip'], items: [
+    b('ice', 820, 0, 20, 100), b('ice', 900, 0, 20, 100), b('ice', 980, 0, 20, 100), b('wood', 900, 100, 200, 20),
+    c(860, 0), c(940, 0),
+    b('wood', 860, 120, 20, 60), b('wood', 940, 120, 20, 60), b('wood', 900, 180, 120, 20), c(900, 120) ] },
+  { name: 'Stone Keep', hogs: ['bramble', 'thump', 'zip', 'thump'], items: [
+    b('wood', 720, 0, 50, 50), b('wood', 720, 50, 50, 50), c(720, 100),
+    b('stone', 850, 0, 24, 100), b('stone', 1000, 0, 24, 100), b('stone', 925, 100, 200, 24), c(925, 0),
+    b('wood', 870, 124, 20, 70), b('wood', 980, 124, 20, 70), b('wood', 925, 194, 150, 20), c(925, 124) ] },
+  { name: 'Twin Towers', hogs: ['zip', 'blaze', 'bramble', 'blaze'], items: [
+    ...tower(800, 'wood', 'ice'), b('stone', 920, 0, 60, 60), c(920, 60), ...tower(1040, 'stone', 'ice') ] },
+  { name: 'The Hoard', hogs: ['bramble', 'zip', 'thump', 'blaze', 'blaze', 'bramble'], items: [
+    b('stone', 760, 0, 24, 110), b('stone', 880, 0, 24, 110), b('stone', 1000, 0, 24, 110), b('stone', 1120, 0, 24, 110),
+    b('stone', 940, 110, 400, 20), c(820, 0), c(940, 0), c(1060, 0),
+    b('wood', 820, 130, 20, 80), b('wood', 940, 130, 20, 80), b('wood', 1060, 130, 20, 80), b('wood', 940, 210, 280, 20),
+    c(880, 130), c(1000, 130),
+    b('ice', 900, 230, 20, 50), b('ice', 980, 230, 20, 50), b('ice', 940, 280, 120, 20), c(940, 230) ] },
+];
+
+/* ---------- saved progress (per browser) ---------- */
+let save = { best: {}, unlocked: 0 };
+try { const s = JSON.parse(localStorage.getItem('hedgehog-havoc') || 'null'); if (s && s.best) save = s; } catch (e) {}
+const persist = () => { try { localStorage.setItem('hedgehog-havoc', JSON.stringify(save)); } catch (e) {} };
+
+/* ---------- sound ---------- */
+let ac = null, muted = false, lastThud = 0;
+function beep(f0, f1, d, type = 'sine', vol = 0.12) {
+  if (muted) return;
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + d);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + d);
+    o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + d);
+  } catch (e) {}
+}
+const thud = () => { const n = performance.now(); if (n - lastThud > 90) { lastThud = n; beep(140, 60, 0.12, 'triangle', 0.14); } };
+
+/* ---------- game state ---------- */
+let engine, ents = [], parts = [], pops = [], trail = [], pierce = [];
+const S = { level: 0, score: 0, phase: 'aim', queue: [], loaded: null, cur: null, drag: null, pull: { x: 0, y: 0 }, t: 0, still: 0, grace: 0, shake: 0, clearT: 0, launched: false };
+
+function add(ent) { ent.body.plugin.ent = ent; Composite.add(engine.world, ent.body); ents.push(ent); return ent; }
+
+function loadLevel(i) {
+  const L = LEVELS[i];
+  engine = Engine.create(); engine.gravity.y = 1; engine.positionIterations = 10; engine.velocityIterations = 8;
+  ents = []; parts = []; pops = []; trail = []; pierce = [];
+  Object.assign(S, { level: i, score: 0, phase: 'aim', queue: [...L.hogs], loaded: null, cur: null, drag: null, pull: { x: 0, y: 0 }, t: 0, still: 0, grace: 90, shake: 0, clearT: 0 });
+  Composite.add(engine.world, Bodies.rectangle(W / 2, GY + 60, 4000, 120, { isStatic: true, friction: 1 }));
+  L.items.forEach((it, n) => {
+    if (it.k === 'block') {
+      const m = MATS[it.mat];
+      add({ kind: 'block', mat: it.mat, w: it.w, h: it.h, hp: m.hp, max: m.hp, seed: n * 7.3 + 1,
+        body: Bodies.rectangle(it.x, GY - it.y - it.h / 2, it.w, it.h, { density: m.den, friction: 0.8, restitution: 0.05 }) });
+    } else {
+      add({ kind: 'coon', r: 22, hp: 22, max: 22,
+        body: Bodies.circle(it.x, GY - it.y - 22, 22, { density: 0.001, friction: 0.7, restitution: 0.2 }) });
+    }
+  });
+  Events.on(engine, 'collisionStart', onCollide);
+  S.loaded = S.queue.shift();
+  overlay.hidden = true;
+  hud();
+}
+
+const effMass = (other, self) => Math.max(2, Math.min(9, other.isStatic ? self.mass : other.mass));
+function onCollide(e) {
+  for (const p of e.pairs) {
+    const A = p.bodyA, B = p.bodyB, ea = A.plugin.ent, eb = B.plugin.ent;
+    const hogHit = (ea && ea.kind === 'hog') || (eb && eb.kind === 'hog');
+    if (S.grace > 0 && !hogHit) continue;
+    for (const h of [ea, eb]) if (h && h.kind === 'hog' && !h.hit) { h.hit = true; h.body.frictionAir = 0.015; }
+    const rel = Math.hypot(A.velocity.x - B.velocity.x, A.velocity.y - B.velocity.y);
+    if (rel < 2) continue;
+    hit(ea, rel * effMass(B, A), eb); hit(eb, rel * effMass(A, B), ea);
+  }
+}
+function hit(ent, force, by) {
+  if (!ent || ent.dead || ent.kind === 'hog') return;
+  damage(ent, force * 0.6 * (ent.kind === 'coon' ? 2 : 1), by);
+}
+function damage(ent, d, by) {
+  S.score += Math.round(Math.max(0, Math.min(d, ent.hp)));
+  ent.hp -= d;
+  if (ent.hp <= 0) {
+    kill(ent);
+    if (by && by.kind === 'hog' && ent.kind === 'block') pierce.push({ body: by.body, vx: by.body.velocity.x, vy: by.body.velocity.y });
+  } else if (d > 5) { burst(ent.body.position.x, ent.body.position.y, colorOf(ent), 3, 2); thud(); }
+}
+const colorOf = ent => ent.kind === 'block' ? MATS[ent.mat].fill : ent.kind === 'coon' ? '#a9adb8' : HOGS[ent.type].col;
+function kill(ent) {
+  if (ent.dead) return;
+  ent.dead = true;
+  const { x, y } = ent.body.position;
+  if (ent.kind === 'coon') { S.score += 500; pop(x, y, '+500'); burst(x, y, '#e6e8ee', 16, 4); beep(520, 180, 0.25, 'square', 0.1); }
+  else if (ent.kind === 'block') { S.score += 100; burst(x, y, MATS[ent.mat].fill, 10, 3.5); beep(ent.mat === 'ice' ? 1400 : 220, ent.mat === 'ice' ? 500 : 70, 0.15, ent.mat === 'ice' ? 'sine' : 'sawtooth', 0.09); }
+  else burst(x, y, '#f6ead7', 10, 3);
+}
+function burst(x, y, col, n, sp) {
+  for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, v = sp * (0.4 + Math.random());
+    parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1, life: 30 + Math.random() * 20, col, s: 3 + Math.random() * 5 }); }
+}
+const pop = (x, y, text) => pops.push({ x, y, text, life: 60 });
+
+function launch() {
+  const type = S.loaded, h = HOGS[type], pl = S.pull;
+  const ent = add({ kind: 'hog', type, r: h.r, used: false, hit: false,
+    body: Bodies.circle(AX + pl.x, AY + pl.y, h.r, { density: h.den, friction: 0.6, restitution: 0.3, frictionAir: 0 }) });
+  Body.setVelocity(ent.body, { x: -pl.x * POWER, y: -pl.y * POWER });
+  S.cur = ent; S.loaded = null; S.phase = 'fly'; S.t = 0; S.still = 0; S.clearT = 0; S.launched = true; trail = [];
+  beep(300, 900, 0.18, 'sine', 0.1);
+  hud();
+}
+function ability() {
+  const e = S.cur; if (!e || e.dead || e.used || e.type === 'bramble') return;
+  e.used = true;
+  const v = e.body.velocity, { x, y } = e.body.position;
+  if (e.type === 'zip') {
+    const sp = Math.hypot(v.x, v.y) || 1, ns = Math.max(sp * 1.9, 20);
+    Body.setVelocity(e.body, { x: v.x / sp * ns, y: v.y / sp * ns }); burst(x, y, '#ffe9a8', 8, 2); beep(700, 1600, 0.15, 'sawtooth', 0.07);
+  } else if (e.type === 'thump') {
+    Body.setVelocity(e.body, { x: v.x * 0.25, y: 24 }); burst(x, y, '#c9d3ee', 8, 2); beep(400, 90, 0.25, 'square', 0.08);
+  } else if (e.type === 'blaze') {
+    const R = 170;
+    for (const o of ents) {
+      if (o === e || o.dead) continue;
+      const dx = o.body.position.x - x, dy = o.body.position.y - y, d = Math.hypot(dx, dy);
+      if (d > R) continue;
+      const f = 1 - d / R, n = d || 1;
+      Body.setVelocity(o.body, { x: o.body.velocity.x + dx / n * 14 * f, y: o.body.velocity.y + dy / n * 14 * f });
+      if (o.kind !== 'hog') damage(o, 150 * f, null);
+    }
+    burst(x, y, '#ffb347', 40, 8); burst(x, y, '#e0553f', 25, 5); S.shake = 14; beep(180, 30, 0.5, 'sawtooth', 0.2);
+    e.dead = true;
+  }
+  hud();
+}
+
+function tick() {
+  if (S.grace > 0) S.grace--;
+  Engine.update(engine, 1000 / 60);
+  for (const p of pierce) Body.setVelocity(p.body, { x: p.vx * 0.6, y: p.vy * 0.6 });
+  pierce = [];
+  let coons = 0, moving = false;
+  for (const e of ents) {
+    const bd = e.body, p = bd.position;
+    if (!e.dead && (p.y > H + 200 || p.x < -300 || p.x > W + 500)) { if (e.kind === 'coon') kill(e); else e.dead = true; }
+    if (e.dead) { Composite.remove(engine.world, bd); continue; }
+    if (e.kind !== 'block') Body.setAngularVelocity(bd, bd.angularVelocity * 0.97);
+    if (e.kind === 'coon') coons++;
+    if (bd.speed > 0.35) moving = true;
+  }
+  ents = ents.filter(e => !e.dead);
+  if (S.phase === 'fly') {
+    S.t++;
+    const cur = S.cur, alive = cur && !cur.dead;
+    if (alive) {
+      if (!cur.hit && S.t % 3 === 0) trail.push({ x: cur.body.position.x, y: cur.body.position.y });
+      S.still = cur.body.speed < 0.3 ? S.still + 1 : 0;
+    }
+    if (coons === 0) S.clearT++;
+    if (!alive || S.t > 420 || S.still > 45 || S.clearT > 80) {
+      if (alive) { kill(cur); Composite.remove(engine.world, cur.body); ents = ents.filter(e => e !== cur); }
+      S.cur = null; S.phase = 'settle'; S.t = 0; S.still = 0; hud();
+    }
+  } else if (S.phase === 'settle') {
+    S.t++; S.still = moving ? 0 : S.still + 1;
+    if (S.still > 30 || S.t > 240) {
+      if (coons === 0) finish(true);
+      else if (!S.queue.length) finish(false);
+      else { S.loaded = S.queue.shift(); S.phase = 'aim'; }
+      hud();
+    }
+  }
+  for (const p of parts) { p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.life--; }
+  parts = parts.filter(p => p.life > 0);
+  for (const p of pops) { p.y -= 0.8; p.life--; }
+  pops = pops.filter(p => p.life > 0);
+  if (S.shake > 0) S.shake *= 0.88;
+}
+
+function finish(win) {
+  S.phase = 'over';
+  if (!win) { beep(300, 120, 0.5, 'triangle', 0.12); return showResult(false, 0); }
+  const spare = S.queue.length;
+  S.score += spare * 1000;
+  const stars = 1 + Math.min(2, spare), prev = save.best[S.level] || { score: 0, stars: 0 };
+  save.best[S.level] = { score: Math.max(prev.score, S.score), stars: Math.max(prev.stars, stars) };
+  save.unlocked = Math.max(save.unlocked, Math.min(LEVELS.length - 1, S.level + 1));
+  persist();
+  [523, 659, 784].forEach((f, i) => setTimeout(() => beep(f, f, 0.2, 'triangle', 0.12), i * 130));
+  showResult(true, stars, spare);
+}
+
+/* ---------- HUD and overlays ---------- */
+function hud() {
+  $('lvl').textContent = `${S.level + 1} · ${LEVELS[S.level].name}`;
+  $('score').textContent = S.score.toLocaleString();
+  $('left').textContent = ents.filter(e => e.kind === 'coon').length;
+  const tip = $('tip');
+  if (S.phase === 'aim' && S.loaded) { const h = HOGS[S.loaded]; tip.innerHTML = `<b>${h.name}</b> is up. ${h.tip} Drag back on the left side, then release.`; }
+  else if (S.phase === 'fly' && S.cur && !S.cur.used && S.cur.type !== 'bramble') tip.innerHTML = `<b>Tap now</b> to use ${HOGS[S.cur.type].name}'s trick.`;
+  else if (S.phase === 'over') tip.textContent = '';
+  else tip.textContent = 'Waiting for the dust to settle.';
+}
+const starRow = n => [0, 1, 2].map(i => i < n ? '<i>★</i>' : '★').join('');
+function showResult(win, stars, spare) {
+  const last = S.level === LEVELS.length - 1;
+  overlay.innerHTML = `<div class="card">
+    <h2>${win ? (last ? 'Forest reclaimed!' : 'Camp cleared!') : 'The bandits held out'}</h2>
+    ${win ? `<div class="stars" aria-label="${stars} of 3 stars">${starRow(stars)}</div><div class="big">${S.score.toLocaleString()}</div>
+      <p>${spare ? `${spare} spare hedgehog${spare > 1 ? 's' : ''} earned ${(spare * 1000).toLocaleString()} bonus points.` : 'Finish with hedgehogs to spare for more stars.'}</p>`
+      : `<p>${ents.filter(e => e.kind === 'coon').length} raccoon bandit(s) still standing. Try a different angle.</p>`}
+    <div class="row">
+      ${win && !last ? '<button class="go" id="oNext" type="button">Next camp</button>' : ''}
+      <button ${win && !last ? '' : 'class="go"'} id="oRetry" type="button">${win ? 'Play again' : 'Try again'}</button>
+      <button id="oLevels" type="button">All camps</button>
+    </div></div>`;
+  overlay.hidden = false;
+  if ($('oNext')) $('oNext').onclick = () => loadLevel(S.level + 1);
+  $('oRetry').onclick = () => loadLevel(S.level);
+  $('oLevels').onclick = showLevels;
+  (overlay.querySelector('.go') || $('oRetry')).focus();
+}
+function showLevels() {
+  overlay.innerHTML = `<div class="card"><h2>Bandit camps</h2>
+    <p>Raccoon bandits have fortified the forest. Knock down every camp.</p>
+    <div class="levels">${LEVELS.map((L, i) => { const bst = save.best[i];
+      return `<button type="button" data-i="${i}" ${i > save.unlocked ? 'disabled' : ''}><span class="n">${i + 1}</span><span>${L.name}</span>
+        <span class="s">${starRow(bst ? bst.stars : 0)}</span><small>${i > save.unlocked ? 'Locked' : bst ? 'Best ' + bst.score.toLocaleString() : 'Not cleared'}</small></button>`; }).join('')}</div>
+    <div class="row"><button id="oBack" type="button">Back to game</button></div></div>`;
+  overlay.hidden = false;
+  overlay.querySelectorAll('[data-i]').forEach(el => el.onclick = () => loadLevel(+el.dataset.i));
+  $('oBack').onclick = () => { if (S.phase === 'over') loadLevel(S.level); else overlay.hidden = true; };
+}
+$('restart').onclick = () => loadLevel(S.level);
+$('levelsBtn').onclick = showLevels;
+$('sound').onclick = e => { muted = !muted; e.target.textContent = muted ? 'Sound off' : 'Sound on'; e.target.setAttribute('aria-pressed', String(!muted)); };
+addEventListener('keydown', e => { if (e.key === 'r' && !e.metaKey && !e.ctrlKey) loadLevel(S.level); });
+
+/* ---------- input ---------- */
+function pt(e) { const r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height }; }
+canvas.addEventListener('pointerdown', e => {
+  if (!overlay.hidden) return;
+  const p = pt(e);
+  if (S.phase === 'aim' && S.loaded && p.x < W * 0.5) { S.drag = p; S.pull = { x: 0, y: 0 }; try { canvas.setPointerCapture(e.pointerId); } catch (_) {} }
+  else if (S.phase === 'fly') ability();
+  e.preventDefault();
+});
+canvas.addEventListener('pointermove', e => {
+  if (!S.drag) return;
+  const p = pt(e); let x = p.x - S.drag.x, y = p.y - S.drag.y; const d = Math.hypot(x, y);
+  if (d > MAXPULL) { x *= MAXPULL / d; y *= MAXPULL / d; }
+  y = Math.min(y, GY - HOGS[S.loaded].r - AY);
+  S.pull = { x, y };
+});
+const release = () => {
+  if (!S.drag) return;
+  S.drag = null;
+  if (Math.hypot(S.pull.x, S.pull.y) > 15) launch();
+  S.pull = { x: 0, y: 0 };
+};
+canvas.addEventListener('pointerup', release);
+canvas.addEventListener('pointercancel', () => { S.drag = null; S.pull = { x: 0, y: 0 }; });
+
+/* ---------- drawing ---------- */
+let bg = null, dpr = 1, scale = 1;
+function rnd(seed) { let s = seed; return () => (s = (s * 9301 + 49297) % 233280) / 233280; }
+function paintBg() {
+  bg = document.createElement('canvas'); bg.width = canvas.width; bg.height = canvas.height;
+  const g = bg.getContext('2d'); g.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+  const sky = g.createLinearGradient(0, 0, 0, GY);
+  sky.addColorStop(0, '#1d1a3a'); sky.addColorStop(0.45, '#4a2f5e'); sky.addColorStop(0.8, '#c4594f'); sky.addColorStop(1, '#f39a55');
+  g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  const r = rnd(42);
+  g.fillStyle = '#f6ead7';
+  for (let i = 0; i < 70; i++) { g.globalAlpha = 0.25 + r() * 0.6; g.beginPath(); g.arc(r() * W, r() * 300, 0.6 + r() * 1.4, 0, 6.283); g.fill(); }
+  g.globalAlpha = 0.18; g.beginPath(); g.arc(1050, 130, 78, 0, 6.283); g.fill();
+  g.globalAlpha = 1; g.beginPath(); g.arc(1050, 130, 54, 0, 6.283); g.fill();
+  g.fillStyle = '#e3d3ba'; [[1035, 118, 9], [1066, 142, 6], [1058, 108, 4]].forEach(([x, y, q]) => { g.beginPath(); g.arc(x, y, q, 0, 6.283); g.fill(); });
+  const ridge = (base, amp, col, seed, trees) => {
+    const q = rnd(seed); g.fillStyle = col; g.beginPath(); g.moveTo(0, GY);
+    const pts = []; for (let x = 0; x <= W; x += 40) { const y = base + Math.sin(x * 0.006 + seed) * amp + q() * 14; pts.push([x, y]); g.lineTo(x, y); }
+    g.lineTo(W, GY); g.fill();
+    for (let i = 0; i < trees; i++) { const [x, y] = pts[Math.floor(q() * pts.length)], hgt = 40 + q() * 70, wd = hgt * 0.36, tx = x + q() * 40;
+      g.beginPath(); g.moveTo(tx - wd, y + 8); g.lineTo(tx, y - hgt); g.lineTo(tx + wd, y + 8); g.fill(); }
+  };
+  ridge(470, 40, '#5a2f5c', 3, 0); ridge(540, 26, '#3b2450', 8, 26); ridge(596, 16, '#271a3e', 15, 34);
+  const gr = g.createLinearGradient(0, GY, 0, H); gr.addColorStop(0, '#2f5d4a'); gr.addColorStop(1, '#16302b');
+  g.fillStyle = gr; g.fillRect(0, GY, W, H - GY);
+  g.fillStyle = '#4c8a66'; g.fillRect(0, GY, W, 6);
+  g.strokeStyle = '#4c8a66'; g.lineWidth = 2;
+  for (let x = 6; x < W; x += 17) { const hh = 5 + r() * 9; g.beginPath(); g.moveTo(x, GY + 2); g.lineTo(x + r() * 6 - 3, GY - hh); g.stroke(); }
+}
+function resize() {
+  const aw = play.clientWidth, ah = play.clientHeight; if (!aw || !ah) return;
+  const cw = Math.floor(Math.min(aw, ah * W / H)), ch = Math.floor(cw * H / W);
+  dpr = Math.min(2, window.devicePixelRatio || 1); scale = cw / W;
+  canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';
+  canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+  paintBg();
+}
+function drawHog(x, y, ang, type) {
+  const h = HOGS[type], r = h.r; ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  ctx.fillStyle = h.spike; ctx.beginPath(); const n = 9;
+  for (let i = 0; i <= n * 2; i++) { const a = Math.PI * 0.3 + i / (n * 2) * Math.PI * 1.4, q = i % 2 ? r * 1.38 : r * 0.9; ctx.lineTo(Math.cos(a) * q, Math.sin(a) * q); }
+  ctx.fill();
+  ctx.fillStyle = h.col; ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.283); ctx.fill();
+  ctx.fillStyle = '#f6dfbd'; ctx.beginPath(); ctx.arc(r * 0.36, r * 0.1, r * 0.6, 0, 6.283); ctx.fill();
+  ctx.fillStyle = '#1b1320'; ctx.beginPath(); ctx.arc(r * 0.42, -r * 0.14, r * 0.15, 0, 6.283); ctx.arc(r * 0.9, r * 0.12, r * 0.14, 0, 6.283); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(r * 0.47, -r * 0.19, r * 0.05, 0, 6.283); ctx.fill();
+  ctx.restore();
+}
+function drawCoon(e) {
+  const r = e.r, p = e.body.position, hurt = e.hp < e.max * 0.6; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(e.body.angle);
+  ctx.fillStyle = '#4b4f5e'; ctx.beginPath(); ctx.arc(-r * 0.62, -r * 0.72, r * 0.32, 0, 6.283); ctx.arc(r * 0.62, -r * 0.72, r * 0.32, 0, 6.283); ctx.fill();
+  ctx.fillStyle = '#a9adb8'; ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.283); ctx.fill();
+  ctx.fillStyle = '#2b2d3a'; ctx.beginPath(); ctx.ellipse(0, -r * 0.15, r * 0.9, r * 0.34, 0, 0, 6.283); ctx.fill();
+  ctx.fillStyle = '#e9ebf1'; ctx.beginPath(); ctx.ellipse(0, r * 0.45, r * 0.46, r * 0.32, 0, 0, 6.283); ctx.fill();
+  ctx.fillStyle = '#1b1320'; ctx.beginPath(); ctx.arc(0, r * 0.32, r * 0.13, 0, 6.283); ctx.fill();
+  for (const sx of [-1, 1]) {
+    const ex = sx * r * 0.38, ey = -r * 0.15;
+    if (hurt) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(ex - 4, ey - 4); ctx.lineTo(ex + 4, ey + 4); ctx.moveTo(ex + 4, ey - 4); ctx.lineTo(ex - 4, ey + 4); ctx.stroke(); }
+    else { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex, ey, r * 0.2, 0, 6.283); ctx.fill(); ctx.fillStyle = '#1b1320'; ctx.beginPath(); ctx.arc(ex - 2, ey + 1, r * 0.09, 0, 6.283); ctx.fill(); }
+  }
+  ctx.restore();
+}
+function drawBlock(e) {
+  const m = MATS[e.mat], p = e.body.position, w = e.w, h = e.h; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(e.body.angle);
+  ctx.fillStyle = m.fill; ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.strokeStyle = m.edge; ctx.lineWidth = 2.5; ctx.strokeRect(-w / 2 + 1.25, -h / 2 + 1.25, w - 2.5, h - 2.5);
+  const long = w >= h, len = Math.max(w, h), q = rnd(Math.floor(e.seed * 10));
+  ctx.lineWidth = 1.5; ctx.globalAlpha = 0.45;
+  if (e.mat === 'wood') for (let i = 1; i <= 2; i++) { const o = (Math.min(w, h) * i / 3) - Math.min(w, h) / 2; ctx.beginPath(); long ? (ctx.moveTo(-len / 2 + 5, o), ctx.lineTo(len / 2 - 5, o)) : (ctx.moveTo(o, -len / 2 + 5), ctx.lineTo(o, len / 2 - 5)); ctx.stroke(); }
+  else if (e.mat === 'ice') { ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.moveTo(-w / 2 + 5, -h / 2 + Math.min(h - 6, 14)); ctx.lineTo(-w / 2 + Math.min(w - 6, 14), -h / 2 + 5); ctx.stroke(); }
+  else { ctx.fillStyle = m.edge; for (let i = 0; i < len / 14; i++) ctx.fillRect((q() - 0.5) * (w - 8), (q() - 0.5) * (h - 8), 3, 3); }
+  if (e.hp < e.max * 0.6) {
+    ctx.globalAlpha = 0.8; ctx.strokeStyle = '#2a1a22'; ctx.lineWidth = 1.5;
+    for (let k = 0; k < (e.hp < e.max * 0.3 ? 3 : 1); k++) { let x = (q() - 0.5) * w * 0.6, y = (q() - 0.5) * h * 0.6; ctx.beginPath(); ctx.moveTo(x, y);
+      for (let i = 0; i < 4; i++) { x += (q() - 0.5) * (long ? 26 : 12); y += (q() - 0.5) * (long ? 12 : 26); ctx.lineTo(Math.max(-w / 2, Math.min(w / 2, x)), Math.max(-h / 2, Math.min(h / 2, y))); } ctx.stroke(); }
+  }
+  ctx.restore();
+}
+function draw() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (bg) ctx.drawImage(bg, 0, 0);
+  const sh = reduced ? 0 : S.shake;
+  ctx.setTransform(scale * dpr, 0, 0, scale * dpr, (Math.random() - 0.5) * sh * dpr * scale, (Math.random() - 0.5) * sh * dpr * scale);
+  // waiting hedgehogs
+  S.queue.forEach((t, i) => drawHog(118 - i * 46, GY - HOGS[t].r, 0, t));
+  // slingshot
+  const hx = AX + S.pull.x, hy = AY + S.pull.y, band = () => { ctx.strokeStyle = '#3a1d22'; ctx.lineWidth = 7; ctx.lineCap = 'round'; };
+  ctx.strokeStyle = '#6b3f22'; ctx.lineWidth = 14; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(AX, GY); ctx.lineTo(AX, AY + 50); ctx.lineTo(AX + 20, AY - 6); ctx.stroke();
+  if (S.loaded) { band(); ctx.beginPath(); ctx.moveTo(AX + 20, AY - 2); ctx.lineTo(hx, hy); ctx.stroke(); }
+  // aim preview
+  if (S.drag && Math.hypot(S.pull.x, S.pull.y) > 15) {
+    let x = hx, y = hy, vx = -S.pull.x * POWER, vy = -S.pull.y * POWER; ctx.fillStyle = '#f6ead7';
+    for (let i = 1; i <= 64; i++) { vy += G; x += vx; y += vy; if (y > GY) break;
+      if (i % 4 === 0) { ctx.globalAlpha = 1 - i / 80; ctx.beginPath(); ctx.arc(x, y, 5 - i / 20, 0, 6.283); ctx.fill(); } }
+    ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = 'rgba(246,234,215,.5)'; for (const t of trail) { ctx.beginPath(); ctx.arc(t.x, t.y, 3, 0, 6.283); ctx.fill(); }
+  if (S.loaded) drawHog(hx, hy, Math.atan2(-S.pull.y, -S.pull.x || 1) * (S.drag ? 1 : 0), S.loaded);
+  ctx.strokeStyle = '#6b3f22'; ctx.lineWidth = 14; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(AX, AY + 50); ctx.lineTo(AX - 20, AY - 6); ctx.stroke();
+  if (S.loaded) { band(); ctx.beginPath(); ctx.moveTo(AX - 20, AY - 2); ctx.lineTo(hx - 6, hy + 2); ctx.stroke(); }
+  for (const e of ents) { if (e.kind === 'block') drawBlock(e); }
+  for (const e of ents) { if (e.kind === 'coon') drawCoon(e); else if (e.kind === 'hog') drawHog(e.body.position.x, e.body.position.y, e.body.angle, e.type); }
+  for (const p of parts) { ctx.globalAlpha = Math.min(1, p.life / 20); ctx.fillStyle = p.col; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); }
+  ctx.font = '30px "Titan One", "Arial Rounded MT Bold", sans-serif'; ctx.textAlign = 'center';
+  for (const p of pops) { ctx.globalAlpha = Math.min(1, p.life / 25); ctx.fillStyle = '#ffb347'; ctx.strokeStyle = '#3a2206'; ctx.lineWidth = 5; ctx.strokeText(p.text, p.x, p.y); ctx.fillText(p.text, p.x, p.y); }
+  ctx.globalAlpha = 1;
+  if (!S.launched && S.phase === 'aim' && !S.drag) {
+    ctx.fillStyle = '#f6ead7'; ctx.font = '26px "Titan One", "Arial Rounded MT Bold", sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('Drag back and let go', AX + 60, AY - 40);
+  }
+}
+
+/* ---------- loop ---------- */
+let last = performance.now(), acc = 0, lastScore = -1;
+function frame(now) {
+  acc += Math.min(60, now - last); last = now;
+  let n = 0;
+  while (acc >= 1000 / 60 && n++ < 3) { if (S.phase !== 'over') tick(); acc -= 1000 / 60; }
+  if (S.score !== lastScore) { lastScore = S.score; $('score').textContent = S.score.toLocaleString(); $('left').textContent = ents.filter(e => e.kind === 'coon').length; }
+  draw();
+  requestAnimationFrame(frame);
+}
+function start(data) {
+  loadLevel(Math.min(LEVELS.length - 1, (data && data.level) || 0));
+  resize();
+  new ResizeObserver(resize).observe(play);
+  requestAnimationFrame(frame);
+}
+window.claude?.hot?.snapshot?.(() => ({ level: S.level }));
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+})();
+</script>
