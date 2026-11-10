@@ -123,7 +123,7 @@ const MATS = {
   keg:   { hp: 12,  den: 0.001,  fill: '#b23a2c', edge: '#5a1710' },
 };
 const DIFFS = {
-  easy:   { label: 'Easy',   block: 0.8, coon: 0.8, extra: 1, dots: 90, mult: 0.75, desc: 'One extra hedgehog, weaker forts and a full aim arc. Scores count x0.75.' },
+  easy:   { label: 'Easy',   block: 0.8, coon: 0.8, extra: 1, dots: 240, mult: 0.75, desc: 'One extra hedgehog, weaker forts and a full aim arc. Scores count x0.75.' },
   normal: { label: 'Normal', block: 1,   coon: 1,   extra: 0, dots: 48, mult: 1,    desc: 'The standard challenge.' },
   hard:   { label: 'Hard',   block: 1.3, coon: 1.5, extra: 0, dots: 20, mult: 1.5,  desc: 'Tougher forts and bandits, and only a short aim arc. Scores count x1.5.' },
 };
@@ -596,9 +596,9 @@ function draw() {
   if (S.loaded) { band(); ctx.beginPath(); ctx.moveTo(AX + 20, AY - 2); ctx.lineTo(hx, hy); ctx.stroke(); }
   // aim preview
   if (S.drag && Math.hypot(S.pull.x, S.pull.y) > 15) {
-    let x = hx, y = hy, vx = -S.pull.x * POWER, vy = -S.pull.y * POWER; const N = DIFFS[save.diff].dots; ctx.fillStyle = T.dot;
+    let x = hx, y = hy, vx = -S.pull.x * POWER, vy = -S.pull.y * POWER; const N = DIFFS[save.diff].dots; ctx.fillStyle = '#fff7e6'; ctx.strokeStyle = '#1b1320'; ctx.lineWidth = 2.5;
     for (let i = 1; i <= N; i++) { vy += G; x += vx; y += vy; if (y > GY) break;
-      if (i % 4 === 0) { ctx.globalAlpha = 1 - i / (N * 1.3); ctx.beginPath(); ctx.arc(x, y, Math.max(2, 5 - i / 20), 0, 6.283); ctx.fill(); } }
+      if (i % 4 === 0) { ctx.globalAlpha = Math.max(0.6, 1 - i / (N * 1.3)); ctx.beginPath(); ctx.arc(x, y, Math.max(4.5, 7 - i / 25), 0, 6.283); ctx.fill(); ctx.stroke(); } }
     ctx.globalAlpha = 1;
   }
   ctx.fillStyle = T.dot; ctx.globalAlpha = 0.5; for (const t of trail) { ctx.beginPath(); ctx.arc(t.x, t.y, 3, 0, 6.283); ctx.fill(); } ctx.globalAlpha = 1;
