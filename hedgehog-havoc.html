@@ -132,7 +132,7 @@ const WORLDS = {
     orb: { x: 1050, y: 130, r: 54, col: '#f6ead7', spot: '#e3d3ba' },
     ridges: [['hill', 470, 40, '#5a2f5c', 0], ['hill', 540, 26, '#3b2450', 26], ['hill', 596, 16, '#271a3e', 34]],
     tree: 'pine', ground: ['#2f5d4a', '#16302b'], lip: '#4c8a66', blades: true, dot: '#f6ead7' },
-  peaks: { name: 'Frozen Peaks', note: 'Icy ground: everything slides.', slip: true, sky: ['#0b1f3a', '#16466b', '#3f8ea3', '#bfe6e4'], stars: 90, aurora: true,
+  peaks: { name: 'Frozen Peaks', note: 'Icy ground: everything slides.', slip: true, amb: 'snow', sky: ['#0b1f3a', '#16466b', '#3f8ea3', '#bfe6e4'], stars: 90, aurora: true,
     orb: { x: 240, y: 120, r: 40, col: '#eef7ff', spot: '#cfe0ee' },
     ridges: [['peak', 430, 120, '#7ea6bd', 0], ['peak', 525, 70, '#4f7d99', 0], ['hill', 598, 14, '#2c5672', 22]],
     tree: 'snowpine', ground: ['#eef6f9', '#9dbccd'], lip: '#ffffff', blades: false, dot: '#0b1f3a' },
@@ -140,13 +140,33 @@ const WORLDS = {
     orb: { x: 880, y: 500, r: 90, col: '#fff1c4' },
     ridges: [['mesa', 440, 80, '#b5533c', 0], ['mesa', 535, 45, '#8a3a32', 0], ['hill', 602, 10, '#5e2630', 9]],
     tree: 'cactus', ground: ['#c9853f', '#7a4420'], lip: '#e3a85c', blades: false, dot: '#3a1c4a' },
+  marsh: { name: 'Mushroom Marsh', note: 'Mushrooms bounce. Pop a balloon to drop its bandit.', amb: '#d8ff8a', rock: '#3c5a4c',
+    sky: ['#0d1b2a', '#1b3a4b', '#2d6a5f', '#8fd6a8'], stars: 40, orb: { x: 180, y: 110, r: 44, col: '#e6ffd9', spot: '#c4e8b8' },
+    ridges: [['hill', 480, 30, '#24584f', 0], ['hill', 545, 22, '#1a4039', 16], ['hill', 598, 14, '#102a26', 24]],
+    tree: 'shroomtree', ground: ['#24443a', '#0f2420'], lip: '#58c79a', blades: true, dot: '#f6ead7' },
+  coast: { name: 'Storm Coast', note: 'Watch the wind.', amb: 'rain', rock: '#56607a',
+    sky: ['#1c2333', '#3a4760', '#6b7f96', '#c9d3da'], stars: 0, orb: { x: 300, y: 150, r: 46, col: '#e8edf2' },
+    ridges: [['mesa', 470, 60, '#5d6b80', 0], ['mesa', 545, 34, '#465366', 0], ['hill', 600, 6, '#2f4d66', 0]],
+    tree: 'pine', ground: ['#6d7a57', '#39432f'], lip: '#9bb07a', blades: true, dot: '#1c2333' },
+  ruins: { name: 'Starfall Ruins', note: 'Low gravity: shots fly far. Rings teleport hedgehogs.', g: 0.55, amb: '#c59bff', rock: '#5a4a8a', caps: false,
+    sky: ['#070614', '#1a1140', '#3d1f6b', '#7a3d8f'], stars: 230, starY: 560, orb: { x: 1010, y: 160, r: 66, col: '#f2b5d4', spot: '#dc93bb', ring: '#ffe3f1' },
+    ridges: [['peak', 470, 80, '#3a2466', 0], ['hill', 548, 20, '#291a4d', 14], ['hill', 600, 10, '#1b1236', 12]],
+    tree: 'pillar', ground: ['#3b2f5c', '#1a1430'], lip: '#8f7fd1', blades: false, dot: '#f6ead7' },
 };
 const HOGS = {
   bramble: { name: 'Bramble', r: 20, den: 0.004, col: '#a06c47', spike: '#4a2c1c', tip: 'No trick, just a solid hit.' },
   zip:     { name: 'Zip',     r: 17, den: 0.004, col: '#e9b23a', spike: '#8a5a10', tip: 'Tap mid-flight to dash forward.' },
   thump:   { name: 'Thump',   r: 26, den: 0.005, col: '#6f80a8', spike: '#2c3550', tip: 'Tap mid-flight to slam straight down.' },
   blaze:   { name: 'Blaze',   r: 20, den: 0.004, col: '#e0553f', spike: '#7a1d12', tip: 'Tap mid-flight to burst and blast everything nearby.' },
+  trio:    { name: 'Burr',    r: 14, den: 0.005, col: '#86b86b', spike: '#2f5d2a', tip: 'Tap mid-flight to split into three.' },
 };
+const ledge = (x, y, w, h, a = 0) => ({ k: 'ledge', x, y, w, h, a });
+const shroom = (x, y, w, a = 0) => ({ k: 'shroom', x, y, w, a });
+const mover = (x, y, w, h, dx, dy, per) => ({ k: 'mover', x, y, w, h, dx, dy, per });
+const boulder = (x, y, r) => ({ k: 'boulder', x, y, r });
+const floaty = (x, y) => ({ k: 'coon', x, y, float: true });
+const chief = (x, y) => ({ k: 'coon', x, y, boss: true });
+const portal = (x, y, flip) => ({ k: 'portal', x, y, flip });
 const b = (mat, x, y, w, h) => ({ k: 'block', mat, x, y, w, h });
 const c = (x, y) => ({ k: 'coon', x, y });
 const tower = (x, base, top) => [
@@ -209,6 +229,56 @@ const LEVELS = [
     b('wood', 960, 190, 260, 20),
     b('ice', 925, 210, 20, 50), b('ice', 995, 210, 20, 50), c(960, 210), b('ice', 960, 260, 110, 20),
     b('wood', 1140, 0, 20, 60), b('wood', 1200, 0, 20, 60), c(1170, 0), b('wood', 1170, 60, 100, 20) ] },
+
+  { world: 'marsh', name: 'Bounce House', hogs: ['bramble', 'bramble', 'zip'], items: [
+    ledge(820, 0, 40, 170), b('wood', 905, 0, 20, 70), b('wood', 975, 0, 20, 70), b('wood', 940, 70, 110, 20), c(940, 0), c(940, 90),
+    shroom(1120, 20, 120, -0.5), floaty(1090, 340) ] },
+  { world: 'marsh', name: 'Lily Ledges', hogs: ['bramble', 'zip', 'trio', 'bramble'], items: [
+    ledge(700, 150, 120, 22), c(700, 172), shroom(810, 0, 100),
+    ledge(900, 280, 130, 22), b('ice', 865, 302, 20, 60), b('ice', 935, 302, 20, 60), b('ice', 900, 362, 110, 20), c(900, 302),
+    ledge(1100, 120, 150, 22), c(1065, 142), b('wood', 1130, 142, 44, 44), c(1130, 186) ] },
+  { world: 'marsh', name: 'Balloon Fair', hogs: ['trio', 'zip', 'trio', 'bramble', 'trio'], items: [
+    floaty(740, 330), floaty(880, 440), floaty(1040, 360), floaty(1170, 470),
+    b('wood', 965, 0, 20, 80), b('wood', 1035, 0, 20, 80), b('wood', 1000, 80, 110, 20), c(1000, 0) ] },
+  { world: 'marsh', name: 'Fungus Fortress', hogs: ['bramble', 'thump', 'trio', 'zip', 'blaze'], items: [
+    ledge(960, 180, 300, 24), b('stone', 880, 204, 24, 80), b('stone', 1040, 204, 24, 80), b('wood', 960, 284, 200, 20),
+    c(920, 204), c(1000, 204), c(960, 304),
+    b('ice', 840, 0, 20, 100), c(900, 0), c(1020, 0), shroom(1190, 20, 110, -0.6), floaty(1160, 440) ] },
+
+  { world: 'coast', name: 'Headwind', wind: -0.05, note: 'Headwind: shots fall short, so aim long.', hogs: ['bramble', 'zip', 'bramble', 'thump'], items: [
+    b('wood', 860, 0, 20, 90), b('wood', 940, 0, 20, 90), b('wood', 900, 90, 120, 20), c(900, 0), c(900, 110),
+    b('stone', 1040, 0, 60, 60), c(1040, 60) ] },
+  { world: 'coast', name: 'Cliffhanger', note: 'Knock the boulder off its ledge.', hogs: ['bramble', 'zip', 'thump', 'bramble'], items: [
+    ledge(820, 200, 200, 24), c(770, 224), boulder(880, 224, 32),
+    b('ice', 950, 0, 20, 70), b('ice', 1030, 0, 20, 70), b('ice', 990, 70, 110, 20), c(990, 0), c(1090, 0),
+    ledge(1150, 300, 130, 24), b('ice', 1105, 324, 20, 60), c(1150, 324) ] },
+  { world: 'coast', name: 'Tide Lifts', wind: 0.03, note: 'Tailwind: shots carry farther. Time your shot with the lifts.', hogs: ['bramble', 'zip', 'trio', 'bramble'], items: [
+    mover(640, 260, 24, 160, 0, 110, 240),
+    mover(780, 80, 110, 20, 0, 70, 300), c(780, 100), mover(940, 200, 110, 20, 0, 90, 360), c(940, 220),
+    mover(1140, 150, 110, 20, 0, 80, 260), c(1140, 170),
+    b('wood', 985, 0, 20, 60), b('wood', 1055, 0, 20, 60), b('wood', 1020, 60, 110, 20), c(1020, 0) ] },
+  { world: 'coast', name: 'Storm Bastion', wind: -0.04, note: 'Headwind, a moving shield, and a boulder waiting for a push.', hogs: ['bramble', 'zip', 'thump', 'blaze', 'trio'], items: [
+    mover(660, 60, 24, 140, 0, 60, 280), ledge(760, 300, 160, 24), boulder(800, 324, 34),
+    b('stone', 900, 0, 24, 110), b('stone', 1060, 0, 24, 110), b('stone', 980, 110, 220, 20), c(940, 0), c(1020, 0),
+    b('wood', 930, 130, 20, 70), b('wood', 1030, 130, 20, 70), b('wood', 980, 200, 140, 20), c(980, 130), c(980, 220),
+    b('ice', 1120, 0, 20, 80), c(1160, 0) ] },
+
+  { world: 'ruins', name: 'Moon Hop', hogs: ['bramble', 'zip', 'bramble', 'trio'], items: [
+    ledge(800, 260, 140, 22), c(800, 282),
+    ledge(1000, 400, 140, 22), b('ice', 965, 422, 20, 60), b('ice', 1035, 422, 20, 60), b('ice', 1000, 482, 110, 20), c(1000, 422),
+    b('wood', 1085, 0, 20, 90), b('wood', 1155, 0, 20, 90), b('wood', 1120, 90, 110, 20), c(1120, 0), c(1120, 110) ] },
+  { world: 'ruins', name: 'Ring Road', note: 'The cave only opens on the far side. Send a hedgehog through the ring.', hogs: ['bramble', 'zip', 'bramble', 'thump'], items: [
+    ledge(900, 0, 30, 200), ledge(990, 200, 210, 24), c(960, 0), c(1040, 0), c(990, 224),
+    portal(600, 300), portal(1230, 90, true) ] },
+  { world: 'ruins', name: "Chief's Vault", note: 'The bandit chief shrugs off a single hit. Kegs hurt more.', hogs: ['bramble', 'zip', 'thump', 'blaze'], items: [
+    b('ice', 760, 0, 20, 70), c(800, 0),
+    b('stone', 900, 0, 24, 120), b('stone', 1100, 0, 24, 120), b('stone', 1000, 120, 240, 24),
+    b('keg', 940, 0, 40, 40), chief(1000, 0), b('keg', 1060, 0, 40, 40), c(1000, 144), c(1180, 0) ] },
+  { world: 'ruins', name: 'Starfall Citadel', note: 'Everything at once. The far ring leads to the chief.', hogs: ['bramble', 'zip', 'trio', 'thump', 'blaze'], items: [
+    mover(700, 120, 24, 150, 0, 100, 300), portal(480, 420), portal(1230, 400, true),
+    b('wood', 860, 0, 20, 90), b('wood', 940, 0, 20, 90), b('wood', 900, 90, 120, 20), c(900, 0), c(900, 110),
+    ledge(1050, 330, 220, 24), b('stone', 960, 354, 24, 90), b('stone', 1140, 354, 24, 90), b('stone', 1050, 444, 210, 20),
+    chief(1040, 354), b('keg', 1100, 354, 40, 40), floaty(760, 430), floaty(1210, 190) ] },
 ];
 
 /* ---------- saved progress (per browser) ---------- */
@@ -237,26 +307,36 @@ function beep(f0, f1, d, type = 'sine', vol = 0.12) {
 const thud = () => { const n = performance.now(); if (n - lastThud > 90) { lastThud = n; beep(140, 60, 0.12, 'triangle', 0.14); } };
 
 /* ---------- game state ---------- */
-let engine, ents = [], parts = [], pops = [], trail = [], pierce = [];
+let engine, ents = [], parts = [], pops = [], trail = [], pierce = [], statics = [], portals = [];
 const S = { level: 0, score: 0, phase: 'aim', queue: [], loaded: null, cur: null, drag: null, pull: { x: 0, y: 0 }, t: 0, still: 0, grace: 0, shake: 0, clearT: 0, launched: false };
 
 function add(ent) { ent.body.plugin.ent = ent; Composite.add(engine.world, ent.body); ents.push(ent); return ent; }
 
 function loadLevel(i) {
   const L = LEVELS[i], D = DIFFS[save.diff], world = WORLDS[L.world], repaint = !bg || LEVELS[S.level].world !== L.world;
-  engine = Engine.create(); engine.gravity.y = 1; engine.positionIterations = 10; engine.velocityIterations = 8;
-  ents = []; parts = []; pops = []; trail = []; pierce = [];
+  engine = Engine.create(); engine.gravity.y = world.g || 1; engine.positionIterations = 10; engine.velocityIterations = 8;
+  ents = []; parts = []; pops = []; trail = []; pierce = []; statics = []; portals = [];
   Object.assign(S, { level: i, score: 0, phase: 'aim', queue: [...L.hogs, ...Array(D.extra).fill('bramble')], loaded: null, cur: null, drag: null, pull: { x: 0, y: 0 }, t: 0, still: 0, grace: 90, shake: 0, clearT: 0 });
   Composite.add(engine.world, Bodies.rectangle(W / 2, GY + 60, 4000, 120, { isStatic: true, friction: world.slip ? 0.02 : 1 }));
+  Object.assign(S, { tick: 0, g: world.g || 1, wind: L.wind || 0 });
+  const fixed = (st, body) => { st.body = body; body.plugin.stat = st; statics.push(st); Composite.add(engine.world, body); };
   L.items.forEach((it, n) => {
+    const cy = h => GY - it.y - h / 2;
     if (it.k === 'block') {
       const m = MATS[it.mat];
       add({ kind: 'block', mat: it.mat, w: it.w, h: it.h, hp: m.hp * D.block, max: m.hp * D.block, seed: n * 7.3 + 1,
-        body: Bodies.rectangle(it.x, GY - it.y - it.h / 2, it.w, it.h, { density: m.den, friction: 0.8, restitution: 0.05 }) });
-    } else {
-      add({ kind: 'coon', r: 22, hp: 22 * D.coon, max: 22 * D.coon,
-        body: Bodies.circle(it.x, GY - it.y - 22, 22, { density: 0.001, friction: 0.7, restitution: 0.2 }) });
-    }
+        body: Bodies.rectangle(it.x, cy(it.h), it.w, it.h, { density: m.den, friction: 0.8, restitution: 0.05 }) });
+    } else if (it.k === 'coon') {
+      const r = it.boss ? 34 : 22, hp = 22 * D.coon * (it.boss ? 5 : 1);
+      add({ kind: 'coon', r, hp, max: hp, boss: !!it.boss, float: !!it.float, home: { x: it.x, y: GY - it.y - r },
+        body: Bodies.circle(it.x, GY - it.y - r, r, { density: 0.001, friction: 0.7, restitution: 0.2 }) });
+    } else if (it.k === 'boulder') {
+      add({ kind: 'block', mat: 'stone', round: true, r: it.r, w: it.r * 2, h: it.r * 2, hp: 400, max: 400, seed: n + 1,
+        body: Bodies.circle(it.x, GY - it.y - it.r, it.r, { density: 0.003, friction: 0.6, restitution: 0.1 }) });
+    } else if (it.k === 'ledge') fixed({ kind: 'ledge', w: it.w, h: it.h }, Bodies.rectangle(it.x, cy(it.h), it.w, it.h, { isStatic: true, angle: it.a, friction: 0.9 }));
+    else if (it.k === 'shroom') fixed({ kind: 'shroom', w: it.w, h: 18, squash: 0 }, Bodies.rectangle(it.x, cy(18), it.w, 18, { isStatic: true, angle: it.a, restitution: 0.95 }));
+    else if (it.k === 'mover') fixed({ kind: 'mover', w: it.w, h: it.h, x0: it.x, y0: cy(it.h), dx: it.dx, dy: it.dy, per: it.per }, Bodies.rectangle(it.x, cy(it.h), it.w, it.h, { isStatic: true, friction: 1 }));
+    else if (it.k === 'portal') portals.push({ x: it.x, y: GY - it.y, flip: !!it.flip });
   });
   Events.on(engine, 'collisionStart', onCollide);
   S.loaded = S.queue.shift();
@@ -266,13 +346,20 @@ function loadLevel(i) {
 }
 
 const effMass = (other, self) => Math.max(2, Math.min(9, other.isStatic ? self.mass : other.mass));
+function popBalloon(ent) {
+  if (!ent.float) return;
+  ent.float = false; ent.hp = Math.min(ent.hp, ent.max * 0.4);
+  burst(ent.body.position.x, ent.body.position.y - ent.r - 40, '#ff6b6b', 12, 4); beep(900, 200, 0.08, 'square', 0.1);
+}
 function onCollide(e) {
   for (const p of e.pairs) {
-    const A = p.bodyA, B = p.bodyB, ea = A.plugin.ent, eb = B.plugin.ent;
+    const A = p.bodyA, B = p.bodyB, ea = A.plugin.ent, eb = B.plugin.ent, st = A.plugin.stat || B.plugin.stat;
     const hogHit = (ea && ea.kind === 'hog') || (eb && eb.kind === 'hog');
     if (S.grace > 0 && !hogHit) continue;
-    for (const h of [ea, eb]) if (h && h.kind === 'hog' && !h.hit) { h.hit = true; h.body.frictionAir = 0.015; }
     const rel = Math.hypot(A.velocity.x - B.velocity.x, A.velocity.y - B.velocity.y);
+    if (rel >= 2) for (const f of [ea, eb]) if (f && f.float) popBalloon(f);
+    if (st && st.kind === 'shroom') { st.squash = 12; if (rel > 3) beep(240, 560, 0.16, 'sine', 0.08); continue; }
+    for (const h of [ea, eb]) if (h && h.kind === 'hog' && !h.hit) { h.hit = true; h.body.frictionAir = 0.015; }
     if (rel < 2) continue;
     hit(ea, rel * effMass(B, A), eb); hit(eb, rel * effMass(A, B), ea);
   }
@@ -295,7 +382,7 @@ function kill(ent) {
   if (ent.dead) return;
   ent.dead = true;
   const { x, y } = ent.body.position;
-  if (ent.kind === 'coon') { pop(x, y, '+' + gain(500)); burst(x, y, '#e6e8ee', 16, 4); beep(520, 180, 0.25, 'square', 0.1); }
+  if (ent.kind === 'coon') { pop(x, y, '+' + gain(ent.boss ? 1500 : 500)); burst(x, y, '#e6e8ee', 16, 4); beep(520, 180, 0.25, 'square', 0.1); }
   else if (ent.kind === 'block' && ent.mat === 'keg') { gain(100); explode(x, y, 150, ent); }
   else if (ent.kind === 'block') { gain(100); burst(x, y, MATS[ent.mat].fill, 10, 3.5); beep(ent.mat === 'ice' ? 1400 : 220, ent.mat === 'ice' ? 500 : 70, 0.15, ent.mat === 'ice' ? 'sine' : 'sawtooth', 0.09); }
   else burst(x, y, '#f6ead7', 10, 3);
@@ -313,6 +400,7 @@ function explode(x, y, R, src) {
     if (d > R) continue;
     const f = 1 - d / R, n = d || 1;
     Body.setVelocity(o.body, { x: o.body.velocity.x + dx / n * 14 * f, y: o.body.velocity.y + dy / n * 14 * f });
+    if (o.float) popBalloon(o);
     if (o.kind !== 'hog') damage(o, 150 * f, null);
   }
   burst(x, y, '#ffb347', 40, 8); burst(x, y, '#e0553f', 25, 5); S.shake = 14; beep(180, 30, 0.5, 'sawtooth', 0.2);
@@ -335,6 +423,14 @@ function ability() {
     Body.setVelocity(e.body, { x: v.x / sp * ns, y: v.y / sp * ns }); burst(x, y, '#ffe9a8', 8, 2); beep(700, 1600, 0.15, 'sawtooth', 0.07);
   } else if (e.type === 'thump') {
     Body.setVelocity(e.body, { x: v.x * 0.25, y: 24 }); burst(x, y, '#c9d3ee', 8, 2); beep(400, 90, 0.25, 'square', 0.08);
+  } else if (e.type === 'trio') {
+    const h = HOGS.trio;
+    for (const sg of [-1, 1]) {
+      const a = sg * 0.2, k = add({ kind: 'hog', type: 'trio', r: h.r, used: true, hit: false,
+        body: Bodies.circle(x, y + sg * (h.r * 2 + 2), h.r, { density: h.den, friction: 0.6, restitution: 0.3, frictionAir: 0 }) });
+      Body.setVelocity(k.body, { x: v.x * Math.cos(a) - v.y * Math.sin(a), y: v.x * Math.sin(a) + v.y * Math.cos(a) });
+    }
+    burst(x, y, '#c9f0a8', 10, 3); beep(500, 1000, 0.12, 'triangle', 0.1);
   } else if (e.type === 'blaze') {
     explode(x, y, 170, e);
     e.dead = true;
@@ -344,7 +440,31 @@ function ability() {
 
 function tick() {
   if (S.grace > 0) S.grace--;
+  S.tick++;
+  for (const st of statics) if (st.kind === 'mover') { const ph = Math.sin(S.tick * 6.283 / st.per);
+    Body.setPosition(st.body, { x: st.x0 + st.dx * ph, y: st.y0 + st.dy * ph }, true); }
+  for (const e of ents) {
+    const bd = e.body;
+    if (e.float) {
+      const ty = e.home.y + Math.sin(S.tick / 40) * 6;
+      Body.applyForce(bd, bd.position, { x: (e.home.x - bd.position.x) * bd.mass * 2e-6, y: -bd.mass * 0.001 * engine.gravity.y + (ty - bd.position.y) * bd.mass * 2e-6 });
+      Body.setVelocity(bd, { x: bd.velocity.x * 0.94, y: bd.velocity.y * 0.94 });
+    } else if (e.kind === 'hog' && !e.hit && S.wind) Body.applyForce(bd, bd.position, { x: bd.mass * S.wind / 277.78, y: 0 });
+  }
   Engine.update(engine, 1000 / 60);
+  for (const e of ents) {
+    if (e.kind !== 'hog' || e.dead) continue;
+    const hp = e.body.position;
+    for (const o of ents) if (o.float && Math.hypot(hp.x - o.body.position.x, hp.y - (o.body.position.y - o.r - 40)) < 22 + e.r) popBalloon(o);
+    if (e.tp > 0) { e.tp--; continue; }
+    for (let i = 0; i < portals.length; i++) {
+      const pa = portals[i]; if (Math.hypot(hp.x - pa.x, hp.y - pa.y) > 38) continue;
+      const pb = portals[i ^ 1], vx = e.body.velocity.x, vy = e.body.velocity.y;
+      burst(pa.x, pa.y, '#7fd1c1', 10, 3); burst(pb.x, pb.y, '#c59bff', 10, 3); beep(300, 1200, 0.2, 'sine', 0.1);
+      Body.setPosition(e.body, { x: pb.x, y: pb.y }); Body.setVelocity(e.body, { x: pb.flip ? -vx : vx, y: vy });
+      e.tp = 45; if (e === S.cur) trail.push({ gap: true }); break;
+    }
+  }
   for (const p of pierce) Body.setVelocity(p.body, { x: p.vx * 0.6, y: p.vy * 0.6 });
   pierce = [];
   let coons = 0, moving = false;
@@ -352,21 +472,20 @@ function tick() {
     const bd = e.body, p = bd.position;
     if (!e.dead && (p.y > H + 200 || p.x < -300 || p.x > W + 500)) { if (e.kind === 'coon') kill(e); else e.dead = true; }
     if (e.dead) { Composite.remove(engine.world, bd); continue; }
-    if (e.kind !== 'block') Body.setAngularVelocity(bd, bd.angularVelocity * 0.97);
+    if (e.kind !== 'block' || e.round) Body.setAngularVelocity(bd, bd.angularVelocity * (e.round ? 0.995 : 0.97));
     if (e.kind === 'coon') coons++;
     if (bd.speed > 0.35) moving = true;
   }
   ents = ents.filter(e => !e.dead);
   if (S.phase === 'fly') {
     S.t++;
-    const cur = S.cur, alive = cur && !cur.dead;
-    if (alive) {
-      if (!cur.hit && S.t % 3 === 0) trail.push({ x: cur.body.position.x, y: cur.body.position.y });
-      S.still = cur.body.speed < 0.3 ? S.still + 1 : 0;
-    }
+    const cur = S.cur, hogs = ents.filter(e => e.kind === 'hog'), alive = hogs.length > 0;
+    if (cur && !cur.dead && !cur.hit && S.t % 3 === 0) trail.push({ x: cur.body.position.x, y: cur.body.position.y });
+    S.still = alive && hogs.every(e => e.body.speed < 0.3) ? S.still + 1 : 0;
     if (coons === 0) S.clearT++;
-    if (!alive || S.t > 420 || S.still > 45 || S.clearT > 80) {
-      if (alive) { kill(cur); Composite.remove(engine.world, cur.body); ents = ents.filter(e => e !== cur); }
+    if (!alive || S.t > 480 || S.still > 45 || S.clearT > 80) {
+      for (const e of hogs) { kill(e); Composite.remove(engine.world, e.body); }
+      ents = ents.filter(e => e.kind !== 'hog');
       S.cur = null; S.phase = 'settle'; S.t = 0; S.still = 0; hud();
     }
   } else if (S.phase === 'settle') {
@@ -405,7 +524,7 @@ function hud() {
   $('score').textContent = S.score.toLocaleString();
   $('left').textContent = ents.filter(e => e.kind === 'coon').length;
   const tip = $('tip');
-  if (S.phase === 'aim' && S.loaded) { const h = HOGS[S.loaded]; tip.innerHTML = `<b>${h.name}</b> is up. ${h.tip} Drag back on the left side, then release.${S.launched ? '' : ' ' + world.note}`; }
+  if (S.phase === 'aim' && S.loaded) { const h = HOGS[S.loaded]; tip.innerHTML = `<b>${h.name}</b> is up. ${h.tip} Drag back on the left side, then release.${S.launched ? '' : ' ' + (LEVELS[S.level].note || world.note)}`; }
   else if (S.phase === 'fly' && S.cur && !S.cur.used && S.cur.type !== 'bramble') tip.innerHTML = `<b>Tap now</b> to use ${HOGS[S.cur.type].name}'s trick.`;
   else if (S.phase === 'over') tip.textContent = '';
   else tip.textContent = 'Waiting for the dust to settle.';
@@ -487,7 +606,7 @@ function paintBg() {
   g.fillStyle = sky; g.fillRect(0, 0, W, H);
   const r = rnd(42);
   g.fillStyle = '#f6ead7';
-  for (let i = 0; i < T.stars; i++) { g.globalAlpha = 0.25 + r() * 0.6; g.beginPath(); g.arc(r() * W, r() * 300, 0.6 + r() * 1.4, 0, 6.283); g.fill(); }
+  for (let i = 0; i < T.stars; i++) { g.globalAlpha = 0.25 + r() * 0.6; g.beginPath(); g.arc(r() * W, r() * (T.starY || 300), 0.6 + r() * 1.4, 0, 6.283); g.fill(); }
   if (T.aurora) {
     g.lineCap = 'round';
     [['#7dffb0', 70, 0.10, 150], ['#7dffb0', 30, 0.16, 150], ['#9fc8ff', 46, 0.10, 215]].forEach(([col, lw, al, y0]) => {
@@ -499,8 +618,11 @@ function paintBg() {
   g.fillStyle = o.col; g.globalAlpha = 0.18; g.beginPath(); g.arc(o.x, o.y, o.r * 1.45, 0, 6.283); g.fill();
   g.globalAlpha = 1; g.beginPath(); g.arc(o.x, o.y, o.r, 0, 6.283); g.fill();
   if (o.spot) { g.fillStyle = o.spot; [[-0.28, -0.22, 0.17], [0.3, 0.22, 0.11], [0.15, -0.4, 0.07]].forEach(([x, y, q]) => { g.beginPath(); g.arc(o.x + x * o.r, o.y + y * o.r, q * o.r, 0, 6.283); g.fill(); }); }
+  if (o.ring) { g.strokeStyle = o.ring; g.lineWidth = 7; g.globalAlpha = 0.8; g.beginPath(); g.ellipse(o.x, o.y, o.r * 1.75, o.r * 0.36, -0.35, 0, 6.283); g.stroke(); g.globalAlpha = 1; }
   const tree = (tx, y, hgt, col) => {
     g.fillStyle = col;
+    if (T.tree === 'shroomtree') { g.fillRect(tx - 4, y - hgt * 0.7, 8, hgt * 0.7 + 8); g.beginPath(); g.ellipse(tx, y - hgt * 0.7, hgt * 0.4, hgt * 0.28, 0, Math.PI, 0); g.fill(); return; }
+    if (T.tree === 'pillar') { g.fillRect(tx - 7, y - hgt * 0.9, 14, hgt * 0.9 + 8); g.fillRect(tx - 12, y - hgt * 0.9 - 6, 24, 7); return; }
     if (T.tree === 'cactus') {
       const h2 = hgt * 0.6; g.fillRect(tx - 4, y - h2, 8, h2 + 8); g.fillRect(tx - 15, y - h2 * 0.55, 11, 5); g.fillRect(tx - 15, y - h2 * 0.55 - 12, 5, 12);
       g.fillRect(tx + 4, y - h2 * 0.75, 11, 5); g.fillRect(tx + 10, y - h2 * 0.75 - 10, 5, 10); return;
@@ -514,7 +636,7 @@ function paintBg() {
     else if (kind === 'peak') for (let x = -40, i = 0; x <= W + 110; x += 110, i++) pts.push([x + q() * 30, base + (i % 2 ? amp * (0.3 + q() * 0.5) : -amp * (0.3 + q() * 0.7))]);
     else { let y = base; for (let x = 0, i = 0; x <= W; x += 40, i++) { if (i % 4 === 0) { const ny = base + (q() - 0.5) * 2 * amp; pts.push([x, y]); y = ny; } pts.push([x, y]); } }
     g.fillStyle = col; g.beginPath(); g.moveTo(0, GY); pts.forEach(p => g.lineTo(p[0], p[1])); g.lineTo(W, GY); g.fill();
-    if (kind === 'peak') { g.fillStyle = '#f4fbff'; g.globalAlpha = 0.85;
+    if (kind === 'peak' && T.caps !== false) { g.fillStyle = '#f4fbff'; g.globalAlpha = 0.85;
       for (let i = 2; i < pts.length - 1; i += 2) { const [px, py] = pts[i], l = pts[i - 1], rr = pts[i + 1];
         g.beginPath(); g.moveTo(px + (l[0] - px) * 0.3, py + (l[1] - py) * 0.3); g.lineTo(px, py); g.lineTo(px + (rr[0] - px) * 0.3, py + (rr[1] - py) * 0.3); g.lineTo(px, py + 18); g.fill(); }
       g.globalAlpha = 1; }
@@ -547,7 +669,11 @@ function drawHog(x, y, ang, type) {
   ctx.restore();
 }
 function drawCoon(e) {
-  const r = e.r, p = e.body.position, hurt = e.hp < e.max * 0.6; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(e.body.angle);
+  const r = e.r, p = e.body.position, hurt = e.hp < e.max * 0.6;
+  if (e.float) { ctx.strokeStyle = '#f6ead7'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x, p.y - r); ctx.lineTo(p.x, p.y - r - 18); ctx.stroke();
+    ctx.fillStyle = '#ff6b6b'; ctx.beginPath(); ctx.ellipse(p.x, p.y - r - 40, 20, 24, 0, 0, 6.283); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.ellipse(p.x - 7, p.y - r - 48, 4, 7, 0.5, 0, 6.283); ctx.fill(); }
+  ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(e.body.angle);
   ctx.fillStyle = '#4b4f5e'; ctx.beginPath(); ctx.arc(-r * 0.62, -r * 0.72, r * 0.32, 0, 6.283); ctx.arc(r * 0.62, -r * 0.72, r * 0.32, 0, 6.283); ctx.fill();
   ctx.fillStyle = '#a9adb8'; ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.283); ctx.fill();
   ctx.fillStyle = '#2b2d3a'; ctx.beginPath(); ctx.ellipse(0, -r * 0.15, r * 0.9, r * 0.34, 0, 0, 6.283); ctx.fill();
@@ -558,10 +684,33 @@ function drawCoon(e) {
     if (hurt) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(ex - 4, ey - 4); ctx.lineTo(ex + 4, ey + 4); ctx.moveTo(ex + 4, ey - 4); ctx.lineTo(ex - 4, ey + 4); ctx.stroke(); }
     else { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex, ey, r * 0.2, 0, 6.283); ctx.fill(); ctx.fillStyle = '#1b1320'; ctx.beginPath(); ctx.arc(ex - 2, ey + 1, r * 0.09, 0, 6.283); ctx.fill(); }
   }
+  if (e.boss) { ctx.fillStyle = '#2a1608'; ctx.beginPath(); ctx.ellipse(0, -r * 0.74, r * 0.98, r * 0.17, 0, 0, 6.283); ctx.fill();
+    ctx.fillRect(-r * 0.5, -r * 1.28, r, r * 0.56); ctx.fillStyle = '#ffb347'; ctx.fillRect(-r * 0.5, -r * 0.92, r, r * 0.12); }
+  ctx.restore();
+}
+function drawStatic(st, T) {
+  const p = st.body.position, w = st.w, h = st.h;
+  if (st.kind === 'mover') { ctx.strokeStyle = T.dot; ctx.globalAlpha = 0.3; ctx.lineWidth = 3; ctx.setLineDash([6, 8]); ctx.beginPath();
+    ctx.moveTo(st.x0 - st.dx, st.y0 - st.dy); ctx.lineTo(st.x0 + st.dx, st.y0 + st.dy); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1; }
+  ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(st.body.angle);
+  if (st.kind === 'shroom') {
+    const q = 1 - st.squash / 40; if (st.squash > 0) st.squash--;
+    ctx.fillStyle = '#f3e3c3'; ctx.fillRect(-9, 4, 18, 30);
+    ctx.translate(0, 9); ctx.scale(1, q); ctx.fillStyle = '#e4572e'; ctx.beginPath(); ctx.ellipse(0, 0, w / 2, 26, 0, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = '#fff3d6'; for (const [fx, fy, fr] of [[-0.28, -11, 5], [0.04, -17, 6], [0.3, -9, 4]]) { ctx.beginPath(); ctx.arc(fx * w, fy, fr, 0, 6.283); ctx.fill(); }
+  } else {
+    const mv = st.kind === 'mover';
+    ctx.fillStyle = mv ? '#c9a13a' : (T.rock || '#5c5f75'); ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.fillStyle = mv ? '#fff1c4' : T.lip; ctx.globalAlpha = 0.85; ctx.fillRect(-w / 2, -h / 2, w, 5); ctx.globalAlpha = 1;
+    ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 2; ctx.strokeRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2);
+  }
   ctx.restore();
 }
 function drawBlock(e) {
   const m = MATS[e.mat], p = e.body.position, w = e.w, h = e.h; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(e.body.angle);
+  if (e.round) { ctx.fillStyle = m.fill; ctx.beginPath(); ctx.arc(0, 0, e.r, 0, 6.283); ctx.fill(); ctx.strokeStyle = m.edge; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = m.edge; for (const [fx, fy] of [[-0.4, -0.3], [0.3, 0.1], [-0.1, 0.5], [0.45, -0.45]]) ctx.fillRect(fx * e.r, fy * e.r, 5, 5);
+    ctx.restore(); return; }
   ctx.fillStyle = m.fill; ctx.fillRect(-w / 2, -h / 2, w, h);
   ctx.strokeStyle = m.edge; ctx.lineWidth = 2.5; ctx.strokeRect(-w / 2 + 1.25, -h / 2 + 1.25, w - 2.5, h - 2.5);
   const long = w >= h, len = Math.max(w, h), q = rnd(Math.floor(e.seed * 10));
@@ -584,8 +733,15 @@ function draw() {
   const sh = reduced ? 0 : S.shake;
   ctx.setTransform(scale * dpr, 0, 0, scale * dpr, (Math.random() - 0.5) * sh * dpr * scale, (Math.random() - 0.5) * sh * dpr * scale);
   const T = WORLDS[LEVELS[S.level].world];
-  if (T.slip && !reduced) { const t = performance.now() / 1000; ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.7;
-    for (let i = 0; i < 50; i++) ctx.fillRect((i * 197.3 + Math.sin(t * 0.7 + i) * 18 + t * 12) % W, (i * 89.7 + t * (28 + i % 5 * 9)) % GY, 3, 3);
+  if (T.amb && !reduced) { const t = performance.now() / 1000;
+    if (T.amb === 'snow') { ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.7;
+      for (let i = 0; i < 50; i++) ctx.fillRect((i * 197.3 + Math.sin(t * 0.7 + i) * 18 + t * 12) % W, (i * 89.7 + t * (28 + i % 5 * 9)) % GY, 3, 3); }
+    else if (T.amb === 'rain') { const wx = S.wind * 260; ctx.strokeStyle = '#eef3f8'; ctx.globalAlpha = 0.35; ctx.lineWidth = 2; ctx.beginPath();
+      for (let i = 0; i < 70; i++) { const x = ((i * 173.1 + t * wx * 40) % W + W) % W, y = (i * 61.7 + t * 620 * (0.8 + i % 4 * 0.1)) % GY; ctx.moveTo(x, y); ctx.lineTo(x + wx, y + 16); }
+      ctx.stroke(); }
+    else { ctx.fillStyle = T.amb;
+      for (let i = 0; i < 26; i++) { ctx.globalAlpha = 0.4 + 0.35 * Math.sin(t * 2 + i * 1.7); ctx.beginPath();
+        ctx.arc((i * 211.7 + Math.sin(t * 0.4 + i) * 40) % W, 120 + (i * 97.3 + Math.cos(t * 0.3 + i * 2) * 30) % 480, 2.5, 0, 6.283); ctx.fill(); } }
     ctx.globalAlpha = 1; }
   // waiting hedgehogs
   S.queue.forEach((t, i) => drawHog(118 - i * 46, GY - HOGS[t].r, 0, t));
@@ -597,17 +753,22 @@ function draw() {
   // aim preview
   if (S.drag && Math.hypot(S.pull.x, S.pull.y) > 15) {
     let x = hx, y = hy, vx = -S.pull.x * POWER, vy = -S.pull.y * POWER; const N = DIFFS[save.diff].dots; ctx.fillStyle = '#fff7e6'; ctx.strokeStyle = '#1b1320'; ctx.lineWidth = 2.5;
-    for (let i = 1; i <= N; i++) { vy += G; x += vx; y += vy; if (y > GY) break;
+    for (let i = 1; i <= N; i++) { vy += G * S.g; vx += S.wind; x += vx; y += vy; if (y > GY) break;
       if (i % 4 === 0) { ctx.globalAlpha = Math.max(0.6, 1 - i / (N * 1.3)); ctx.beginPath(); ctx.arc(x, y, Math.max(4.5, 7 - i / 25), 0, 6.283); ctx.fill(); ctx.stroke(); } }
     ctx.globalAlpha = 1;
   }
-  ctx.fillStyle = T.dot; ctx.globalAlpha = 0.5; for (const t of trail) { ctx.beginPath(); ctx.arc(t.x, t.y, 3, 0, 6.283); ctx.fill(); } ctx.globalAlpha = 1;
+  ctx.fillStyle = T.dot; ctx.globalAlpha = 0.5; for (const t of trail) { if (t.gap) continue; ctx.beginPath(); ctx.arc(t.x, t.y, 3, 0, 6.283); ctx.fill(); } ctx.globalAlpha = 1;
   if (S.loaded) drawHog(hx, hy, Math.atan2(-S.pull.y, -S.pull.x || 1) * (S.drag ? 1 : 0), S.loaded);
   ctx.strokeStyle = '#6b3f22'; ctx.lineWidth = 14; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(AX, AY + 50); ctx.lineTo(AX - 20, AY - 6); ctx.stroke();
   if (S.loaded) { band(); ctx.beginPath(); ctx.moveTo(AX - 20, AY - 2); ctx.lineTo(hx - 6, hy + 2); ctx.stroke(); }
+  for (const st of statics) drawStatic(st, T);
   for (const e of ents) { if (e.kind === 'block') drawBlock(e); }
   for (const e of ents) { if (e.kind === 'coon') drawCoon(e); else if (e.kind === 'hog') drawHog(e.body.position.x, e.body.position.y, e.body.angle, e.type); }
+  portals.forEach((pt2, i) => { ctx.save(); ctx.translate(pt2.x, pt2.y); ctx.strokeStyle = i % 2 ? '#c59bff' : '#7fd1c1';
+    ctx.globalAlpha = 0.25; ctx.lineWidth = 14; ctx.beginPath(); ctx.ellipse(0, 0, 20, 38, 0, 0, 6.283); ctx.stroke();
+    ctx.globalAlpha = 1; ctx.lineWidth = 5; ctx.setLineDash([14, 8]); ctx.lineDashOffset = reduced ? 0 : -performance.now() / 50;
+    ctx.beginPath(); ctx.ellipse(0, 0, 20, 38, 0, 0, 6.283); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); });
   for (const p of parts) { ctx.globalAlpha = Math.min(1, p.life / 20); ctx.fillStyle = p.col; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); }
   ctx.font = '30px "Titan One", "Arial Rounded MT Bold", sans-serif'; ctx.textAlign = 'center';
   for (const p of pops) { ctx.globalAlpha = Math.min(1, p.life / 25); ctx.fillStyle = '#ffb347'; ctx.strokeStyle = '#3a2206'; ctx.lineWidth = 5; ctx.strokeText(p.text, p.x, p.y); ctx.fillText(p.text, p.x, p.y); }
